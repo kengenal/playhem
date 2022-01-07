@@ -6,8 +6,11 @@ import discord
 import asyncio
 
 import youtube_dl
+
 from discord import Forbidden
 from tinydb import TinyDB, where
+
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 servers_db = TinyDB("./server_settings.json")
 
@@ -15,6 +18,9 @@ bot = discord.Bot()
 db = TinyDB("./queue.json")
 
 youtube_dl.utils.bug_reports_message = lambda: ''
+
+invite_url = "https://discord.com/api/oauth2/authorize?client_id={}" \
+             "&scope=bot&permissions=156803300672&scope=bot%20applications.commands "
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -103,8 +109,7 @@ async def play(ctx, name=None):
             "server": int(ctx.guild.id),
             "is_playing": False
         })
-        await ctx.respond(f"{str(name)} has been added to playlist")
-        await ctx.respond(embed=discord.Embed(title=f"{str(name)} has been added to playlist"))
+        await ctx.respond(embed=discord.Embed(title=f"{str(ctx.author.name)} add {str(name)} to playlist"))
     if not db.get((where("is_playing") == True) & (where("server") == ctx.guild.id)):
         if ctx.voice_client is None:
             if not ctx.author.voice:
@@ -167,18 +172,6 @@ async def volume_display(ctx, volume: int):
 
 
 @bot.event
-async def on_ready():
-    print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
-    print(
-        'Invite: https://discord.com/api/oauth2/authorize?client_id=928707578723180544&scope=bot&permissions'
-        '=156803300672&scope=bot%20applications.commands'.format(
-            bot.user.id))
-    print('------')
-
-
-@bot.event
 async def on_guild_join(guild):
     if not servers_db.get(where("id") == guild.id):
         servers_db.insert({
@@ -215,8 +208,29 @@ async def guid_builder(guid_id):
         raise
 
 
+class RedirectWebHttpHandler(BaseHTTPRequestHandler):
+    def _redirect(self):
+        self.send_response(301)
+        self.send_header("Location", invite_url.format(os.getenv("CLIENT_ID")))
+        self.end_headers()
+
+    def do_GET(self):
+        self._redirect()
+
+    def do_POST(self):
+        self._redirect()
+
+    def do_HEAD(self):
+        self._redirect()
+
+
 def main():
-    bot.run(os.getenv("TOKEN"))
+    if len(sys.argv) == 3 and sys.argv[1] == "web":
+        server = HTTPServer(("0.0.0.0", int(sys.argv[2])), RedirectWebHttpHandler)
+        server.serve_forever()
+        server.server_close()
+    else:
+        bot.run(os.getenv("TOKEN"))
 
 
 if __name__ == '__main__':
