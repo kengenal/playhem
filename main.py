@@ -7,13 +7,11 @@ import asyncio
 
 import youtube_dl
 
-from discord import Forbidden
 from tinydb import TinyDB, where
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 servers_db = TinyDB("./server_settings.json")
-
 bot = discord.Bot()
 db = TinyDB("/tmp/queue.json")
 
@@ -66,7 +64,7 @@ class YoutubeStream(discord.PCMVolumeTransformer):
 
 
 async def play_queue(ctx):
-    while db.count(where("server") == ctx.guild.id) > 0:
+    while db.count(where("server") == ctx.guild.id) > 0 and ctx.voice_client:
         play_next_song.clear()
         song = db.get(where("server") == ctx.guild.id)
         if not song:
@@ -123,9 +121,12 @@ async def play(ctx, name=None):
 @bot.slash_command()
 async def skip(ctx):
     """ Skip song """
+    count_songs = db.count(where("server") == ctx.guild.id)
     song = db.get((where("is_playing") == True) & (where("server") == ctx.guild.id))
-    if not song:
-        return await ctx.voice_client.disconnect()
+    if count_songs == 1 or song is None:
+        ctx.voice_client.stop()
+        await ctx.voice_client.disconnect()
+        return await ctx.respond(embed=discord.Embed(title="This is the end!"))
     ctx.voice_client.pause()
     toggle_next(song["id"])
 
@@ -134,7 +135,8 @@ async def skip(ctx):
 async def leave(ctx):
     """ stop playing music """
     song = db.get((where("is_playing") == True) & (where("server") == ctx.guild.id))
-    db.update({"is_playing": False}, where("id") == song["id"])
+    if song:
+        db.update({"is_playing": False}, where("id") == song["id"])
     ctx.voice_client.stop()
     await ctx.voice_client.disconnect()
     return await ctx.respond(embed=discord.Embed(title="This is the end!"))
@@ -198,12 +200,12 @@ async def guid_builder(guid_id):
                     await bot.http.bulk_upsert_guild_commands(
                         bot.user.id, guild_id, update_guild_commands[guild_id]
                     )
-                except Forbidden:
+                except discord.Forbidden:
                     if not guild_data:
                         continue
                     print(f"Failed to add command to guild {guild_id}", file=sys.stderr)
                     raise
-    except Forbidden:
+    except discord.Forbidden:
         print(f"Failed to add command to guild {guid_id}", file=sys.stderr)
         raise
 
