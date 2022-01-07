@@ -15,7 +15,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 servers_db = TinyDB("./server_settings.json")
 
 bot = discord.Bot()
-db = TinyDB("/tmp/queue.json")
+db = TinyDB("./queue.json")
 
 youtube_dl.utils.bug_reports_message = lambda: ''
 
