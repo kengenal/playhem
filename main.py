@@ -18,7 +18,7 @@ db = TinyDB("/tmp/queue.json")
 youtube_dl.utils.bug_reports_message = lambda: ''
 
 invite_url = "https://discord.com/api/oauth2/authorize?client_id={}" \
-             "&scope=bot&permissions=156803300672&scope=bot%20applications.commands "
+             "&scope=bot&permissions=156803300672&scope=bot%20applications.commands"
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -64,6 +64,7 @@ class YoutubeStream(discord.PCMVolumeTransformer):
 
 
 async def play_queue(ctx):
+    """ Play song in loop """
     while db.count(where("server") == ctx.guild.id) > 0 and ctx.voice_client:
         play_next_song.clear()
         song = db.get(where("server") == ctx.guild.id)
@@ -98,7 +99,7 @@ def toggle_next(song_id=None):
 
 @bot.slash_command()
 async def play(ctx, name=None):
-    """ play music from youtube you first you need connect to voice channel """
+    """ play music from youtube you first you need connect to voice channel (song name or youtube link) """
     if name is not None:
         db.insert({
             "id": str(uuid.uuid4()),
@@ -157,6 +158,31 @@ async def volume(ctx, volume: int = None):
     return await volume_display(ctx=ctx, volume=volume)
 
 
+@bot.slash_command()
+async def queue(ctx):
+    """ Show queue """
+    if db.count(where("server") == ctx.guild.id) == 0:
+        return await ctx.send(embed=discord.Embed(title=f"Queue is empty"))
+    songs = db.search(where("server") == ctx.guild.id)
+    embed = discord.Embed(title="In queue: ")
+    key = 1
+    for index, song in enumerate(songs):
+        title = song.get("name").capitalize()
+        author = song.get("author").capitalize()
+        embed.add_field(name=f"{index + 1}. {title} [{author}] :white_check_mark:", inline=False, value="-")
+    await ctx.send(embed=embed)
+
+
+@bot.event
+async def on_guild_join(guild):
+    if not servers_db.get(where("id") == guild.id):
+        servers_db.insert({
+            "volume": 0.5,
+            "id": int(guild.id)
+        })
+        await guid_builder(guild.id)
+
+
 async def volume_display(ctx, volume: int):
     display_volume = ":loud_sound:  | "
     for i in range(1, 11):
@@ -171,16 +197,6 @@ async def volume_display(ctx, volume: int):
         description=f"Volume {volume}/10"
     )
     return await ctx.send(embed=embed)
-
-
-@bot.event
-async def on_guild_join(guild):
-    if not servers_db.get(where("id") == guild.id):
-        servers_db.insert({
-            "volume": 0.5,
-            "id": int(guild.id)
-        })
-        await guid_builder(guild.id)
 
 
 async def guid_builder(guid_id):
@@ -213,7 +229,7 @@ async def guid_builder(guid_id):
 class RedirectWebHttpHandler(BaseHTTPRequestHandler):
     def _redirect(self):
         self.send_response(301)
-        self.send_header("Location", invite_url.format(os.getenv("CLIENT_ID")))
+        self.send_header("Location", invite_url.format(746676646739705876))
         self.end_headers()
 
     def do_GET(self):
